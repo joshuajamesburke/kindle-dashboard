@@ -1,0 +1,31 @@
+{
+  "items": [
+    {
+      "name": "Weather Dashboard",
+      "priority": 1,
+      "items": [
+        {
+          "name": "Refresh once (test)",
+          "priority": 1,
+          "action": "/bin/sh",
+          "params": "/mnt/us/extensions/dashboard/bin/refresh.sh",
+          "exitmenu": false
+        },
+        {
+          "name": "Start",
+          "priority": 2,
+          "action": "/bin/sh",
+          "params": "/mnt/us/extensions/dashboard/bin/start.sh",
+          "exitmenu": true
+        },
+        {
+          "name": "Stop and restore Kindle UI",
+          "priority": 3,
+          "action": "/bin/sh",
+          "params": "/mnt/us/extensions/dashboard/bin/stop.sh",
+          "exitmenu": true
+        }
+      ]
+    }
+  ]
+}

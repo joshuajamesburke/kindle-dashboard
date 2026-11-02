@@ -1,0 +1,21 @@
+# secrets
+api_key.txt
+
+# third-party files you download yourself (see README)
+external/*
+!external/README.md
+certs/*
+!certs/README.md
+
+# generated on the device
+dashboard.log
+dashboard.log.tmp
+work/*
+!work/.gitkeep
+fonts/cache/
+
+# OS / editor junk
+.DS_Store
+._*
+__pycache__/
+*.pyc
