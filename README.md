@@ -75,7 +75,7 @@ further. Do at least one of these:
 
 KUAL is a launcher for homebrew apps, and MRPI installs packages. Follow
 KindleModding's
-[KUAL and MRPI guide](https://kindlemodding.org/jailbreaking/post-jailbreak/installing-kual-mrpi/).
+[KUAL and MRPI guide](https://kindlemodding.org/jailbreaking/Legacy/post-jailbreak/installing-kual-mrpi/).
 When you're done you'll have a KUAL book in your library.
 
 Then install Python. From
@@ -114,7 +114,7 @@ without it every HTTPS request fails.
 ## Step 5: Get a 511 API key
 
 The train times come from 511.org, the Bay Area's transit data service. Request
-a free key at [511.org/open-data/token](https://511.org/open-data/token). It
+a free key on [511.org's open data page](https://511.org/open-data) (look for "Request a token"). It
 shows up in your email within a few minutes.
 
 Copy `api_key.example.txt` to `api_key.txt` and replace the text inside with
@@ -127,9 +127,10 @@ Open `bin/run.py`. The settings are at the top:
 
 - `LAT` and `LON`: where to get the weather for
 - `STOP_NB` and `STOP_SB`: your Caltrain station's stop codes, one for each
-  direction. Menlo Park is 70161 (northbound) and 70162 (southbound). The codes
-  for other stations are on
-  [511's stop list](https://511.org/transit/agencies/stop-id).
+  direction. Menlo Park is 70161 (northbound) and 70162 (southbound). Every
+  station follows the same pattern, ending in 1 for northbound and 2 for
+  southbound. There's a full table in the
+  [MMM-Caltrain README](https://github.com/zzhenney/MMM-Caltrain).
 - `UNITS`: `fahrenheit` or `celsius`
 
 If you're not on Pacific time, you also need to change the timezone in two
