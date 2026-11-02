@@ -1,116 +1,271 @@
 # kindle-dashboard
 
-An e-ink dashboard for a jailbroken Kindle that shows the time, the weather,
-and the next Caltrain departures in both directions. It runs entirely on the
-Kindle: no server, no subscription, no second computer. Each wake it fetches
-data, draws an SVG, puts it on the screen, and goes back into deep sleep.
+I had an old Kindle sitting in a drawer, so I turned it into a little e-ink
+display for my desk. It shows the time, the weather, and the next two Caltrain
+departures each way from Menlo Park. Everything runs on the Kindle itself, so
+there's no server to keep running and nothing to pay for. It wakes up, grabs
+fresh data, redraws the screen, and goes back to sleep. On battery it lasts a
+good while between charges.
 
-<img src="docs/preview.png" width="360" alt="Dashboard showing time, weather, Caltrain departures and a three-day forecast">
+<img src="docs/preview.png" width="360" alt="The dashboard: time, weather, Caltrain departures, three-day forecast">
 
-Built for a **Kindle Basic (8th/10th gen, 600×800)** on firmware 5.14.3,
-jailbroken with WinterBreak. Other models should work with a different
-template size.
+I built it on a Kindle Basic (8th/10th gen, 600×800 screen) running firmware
+5.14.3. Other models should work, but you'd have to resize the layout in
+`svg/template.svg` to fit your screen.
 
-## How it works
+This guide goes from a stock Kindle to a working dashboard. Plan on an hour or
+two the first time, mostly downloading things and waiting on reboots.
 
-```
-wake (RTC alarm)
-  → Wi-Fi up → fetch Open-Meteo weather + 511.org Caltrain predictions
-  → fill svg/template.svg → rsvg-convert to PNG → FBInk to the screen
-  → pick the next wake time → deep sleep
-```
+---
 
-The refresh schedule adapts to save battery: every 10 minutes during weekday
-commute hours, every 20 minutes otherwise, nothing overnight when no trains
-run, and always a wake just after the soonest train on screen departs.
+## Before you start
 
-## What you need
+You'll need:
 
-On the Kindle (via MRPI, from
-[NiLuJe's snapshots thread](https://www.mobileread.com/forums/showthread.php?t=320564)):
+- A Kindle you're fine never reading on again (you can switch back, but
+  you won't want to keep flipping between the two)
+- A computer and a USB cable
+- Your Wi-Fi password and access to your router's settings
+- A free account on [MobileRead](https://www.mobileread.com/forums/) for some of
+  the downloads
 
-- **Python 3**: `Update_python3_*_install_pw2_and_up.bin`. This also brings FBInk.
-- **USBNetwork** (optional, for SSH debugging): `Update_usbnet_*_install_pw2_and_up.bin`
+**Check your firmware first.** On the Kindle, go to Settings → Device Options →
+Device Info and write down the version number. Whether you can jailbreak at all
+depends on it, and if the Kindle updates itself before you're done, you may lose
+your chance. So once you've got the number, turn on Airplane Mode and leave it
+on until step 2 tells you otherwise.
 
-Downloaded yourself (not included in this repo):
+---
 
-| File | Where it goes | Source |
+## Step 1: Jailbreak the Kindle
+
+I'm not going to rewrite the jailbreak guide here, because the KindleModding
+folks keep theirs up to date and it changes as Amazon patches things.
+
+1. Put your firmware version into the
+   [KindleModding jailbreak finder](https://kindlemodding.org/jailbreak-wizard.html).
+   It tells you which method works for your Kindle.
+2. Follow that method's guide all the way through. For most older Kindles it's
+   [WinterBreak](https://kindlemodding.org/jailbreaking/WinterBreak/), which is
+   what I used.
+3. When it works you'll see a "Jailbroken" book in your library.
+
+If you used WinterBreak, the hotfix (which keeps the jailbreak after a reboot)
+is already installed. The KindleModding guides mention a separate hotfix step
+for some methods; skip it if your method says it's included. You'll know
+something's wrong if the "Update Your Kindle" button stays grayed out when a
+guide asks you to press it, and that's the usual reason.
+
+## Step 2: Stop it from updating
+
+A Kindle update can undo the jailbreak, so block updates before you go any
+further. Do at least one of these:
+
+- **Block it at your router.** Find the Kindle in your router's device list and
+  block its internet access. The dashboard needs the internet later, so either
+  allow just `api.open-meteo.com` and `api.511.org` (if your router can do
+  per-site rules) or unblock it again at the end and accept a small risk.
+- **Fill up its storage.** Updates need several hundred MB of free space to
+  download. If you do this, leave about 150 MB free, not zero. The dashboard
+  needs a little room for its log and images, and if you fill it all the way it
+  crashes with "no space left on device." (Ask me how I know.) There's a
+  script for this in [Troubleshooting](#troubleshooting).
+
+## Step 3: Install KUAL, MRPI and Python
+
+KUAL is a launcher for homebrew apps, and MRPI installs packages. Follow
+KindleModding's
+[KUAL and MRPI guide](https://kindlemodding.org/jailbreaking/post-jailbreak/installing-kual-mrpi/).
+When you're done you'll have a KUAL book in your library.
+
+Then install Python. From
+[NiLuJe's snapshots thread](https://www.mobileread.com/forums/showthread.php?t=320564),
+download the Python package and grab the file named
+`Update_python3_*_install_pw2_and_up.bin`. Not the one without the 3 (that's
+Python 2), and not `touch_pw` (that's for much older Kindles).
+
+While you're there, it's worth grabbing USBNetwork too
+(`Update_usbnet_*_install_pw2_and_up.bin`). It lets you SSH into the Kindle,
+which helps a lot if something goes wrong.
+
+Copy the `.bin` files into the `mrpackages` folder on the Kindle, eject it,
+unplug it, and type `;log mrpi` into the Kindle's search bar. The screen might
+go blank for a bit and you might get an "Application Error" popup. Both are
+normal.
+
+You don't need to install FBInk separately. It comes with the Python package.
+
+## Step 4: Get the extra files
+
+A few things aren't in this repo because they're other people's binaries or
+change over time. Download this repo first (green Code button → Download ZIP,
+then unzip it), then:
+
+| What | Put it in | Where to get it |
 |---|---|---|
-| `rsvg-convert`, `rsvg-convert-lib/` | `external/` | [4dcu-be/kual-dashboard](https://github.com/4dcu-be/kual-dashboard), `dashboard/external/` |
-| `cacert.pem` | `certs/` | https://curl.se/ca/cacert.pem |
-| `DejaVuSans.ttf`, `DejaVuSans-Bold.ttf` | `/mnt/us/fonts/` on the Kindle | https://dejavu-fonts.github.io/ |
-| A 511.org API key (free) | `api_key.txt` | https://511.org/open-data/token |
+| `rsvg-convert` and the `rsvg-convert-lib` folder | `external/` | [4dcu-be/kual-dashboard](https://github.com/4dcu-be/kual-dashboard), in `dashboard/external/` |
+| `cacert.pem` | `certs/` | [curl.se/ca/cacert.pem](https://curl.se/ca/cacert.pem) (right-click, Save As) |
+| `DejaVuSans.ttf` and `DejaVuSans-Bold.ttf` | a `fonts` folder at the top level of the Kindle (not the one in this repo) | [dejavu-fonts.github.io](https://dejavu-fonts.github.io/) |
 
-## Install
+`rsvg-convert` turns the SVG layout into an image. The CA bundle is there
+because the Kindle's own list of trusted certificates is years out of date, so
+without it every HTTPS request fails.
 
-1. Download this repo and add the files from the table above.
-2. Copy `api_key.example.txt` to `api_key.txt` and paste your 511 key into it.
-3. Copy the folder to the Kindle as **`extensions/dashboard/`**. The name
-   matters: `menu.json` refers to that path.
-4. Open KUAL → **Weather Dashboard** → **Refresh once (test)**. This draws a
-   single frame without stopping the Kindle UI, so it's safe to retry.
-5. When that works, choose **Start**.
+## Step 5: Get a 511 API key
 
-To get the normal Kindle back, hold the power button until it reboots. The
-dashboard never starts on its own.
+The train times come from 511.org, the Bay Area's transit data service. Request
+a free key at [511.org/open-data/token](https://511.org/open-data/token). It
+shows up in your email within a few minutes.
 
-## Configuration
+Copy `api_key.example.txt` to `api_key.txt` and replace the text inside with
+your key. `api_key.txt` is in `.gitignore`, so if you fork this, your key won't
+get committed by accident.
 
-In `bin/run.py`:
+## Step 6: Set your location
 
-| Setting | Purpose |
-|---|---|
-| `LAT`, `LON` | Weather location |
-| `UNITS` | `fahrenheit` or `celsius` |
-| `TZ_API`, `TZ_LOCAL` | Timezone, as an IANA name and a POSIX rule string (also set `TZ` in `bin/common.sh`) |
-| `STOP_NB`, `STOP_SB` | Caltrain stop codes (Menlo Park is 70161 / 70162) |
-| `PEAK_INTERVAL`, `OFFPEAK_INTERVAL`, `MIN_INTERVAL` | Refresh schedule |
-| `NIGHT_START`, `NIGHT_END` | Overnight window with no refreshes |
+Open `bin/run.py`. The settings are at the top:
 
-In `bin/start.sh`, `REFRESH_SECONDS=""` uses the adaptive schedule. Set a
-number of seconds to force a fixed interval for testing, never below 180:
-each wake makes two 511 requests, and 511 allows 60 per hour per key.
+- `LAT` and `LON`: where to get the weather for
+- `STOP_NB` and `STOP_SB`: your Caltrain station's stop codes, one for each
+  direction. Menlo Park is 70161 (northbound) and 70162 (southbound). The codes
+  for other stations are on
+  [511's stop list](https://511.org/transit/agencies/stop-id).
+- `UNITS`: `fahrenheit` or `celsius`
 
-The layout is `svg/template.svg`, a fixed 600×800 SVG with `{{TOKENS}}` that
-`run.py` fills in. Open it in a browser to preview edits.
+If you're not on Pacific time, you also need to change the timezone in two
+places, `TZ_API` and `TZ_LOCAL` in `run.py` and `TZ` in `bin/common.sh`. The
+Kindle doesn't understand names like `America/New_York`, so `TZ_LOCAL` and
+`common.sh` take a rule string instead. Eastern is
+`EST5EDT,M3.2.0,M11.1.0`, Central is `CST6CDT,M3.2.0,M11.1.0`, Mountain is
+`MST7MDT,M3.2.0,M11.1.0`.
+
+## Step 7: Copy it to the Kindle
+
+Plug in the Kindle and copy the whole folder into `extensions/`, renamed to
+exactly `dashboard`. You should end up with `extensions/dashboard/config.xml`.
+The name matters, because the KUAL menu points at that path.
+
+Eject and unplug.
+
+## Step 8: Test it
+
+Open KUAL. You should see **Weather Dashboard**. Tap it, then
+**Refresh once (test)**.
+
+This draws one screen without shutting anything down, so if it fails you've
+still got a working Kindle. The first time can take a couple of minutes while
+it builds a font cache. After that it's 10 to 20 seconds.
+
+If it doesn't draw, plug the Kindle in and open `extensions/dashboard/dashboard.log`.
+Wait until it's had time to finish first, because plugging in USB kills
+anything that's still running.
+
+## Step 9: Start it for real
+
+Once the test works, turn Airplane Mode off (so it can reach the internet), then
+go to KUAL → Weather Dashboard → **Start**.
+
+The screen goes white for a minute or so while the normal Kindle software shuts
+down, and then the dashboard shows up. After that it sleeps between updates,
+so it'll look frozen. That's on purpose; it's what makes the battery last.
+The bottom-right corner shows when the next update is.
+
+To get your normal Kindle back, hold the power button until it reboots (it can
+take up to a minute). The dashboard never starts on its own after a reboot.
+
+---
+
+## How often it updates
+
+On weekday mornings and evenings (6–10am, 4–8pm) it updates every 10 minutes.
+The rest of the day it's every 20. Between 1:30 and 4:45am, when no trains run,
+it doesn't wake up at all. It also always wakes up right after the first train
+on screen leaves, so it's never showing you a train that's already gone.
+
+You can change all of this at the top of `bin/run.py`. For testing, set
+`REFRESH_SECONDS` in `bin/start.sh` to a fixed number of seconds. Don't go
+below 180: each update uses two 511 requests, and they only allow 60 an hour.
+
+## Changing the layout
+
+The layout is `svg/template.svg`. It's a normal SVG with placeholders like
+`{{TEMP}}` that the script fills in. You can open it in a browser to see your
+changes before copying it over. Everything's positioned by hand on a 600×800
+grid, so if you move something, check that nothing overlaps.
+
+---
 
 ## Troubleshooting
 
-Everything is logged to `dashboard.log` in the extension folder, including how
-long each stage took and how much free space is left. Read it over USB, but
-give the script time to finish first: plugging in unmounts the user storage
-and kills a run in progress.
+Everything gets written to `dashboard.log` in the extension folder, including
+how long each step took and how much free space is left. That's the first place
+to look.
 
-Things that bit during development:
+**KUAL doesn't show Weather Dashboard.** KUAL looks for `config.xml`, and it
+has to be directly inside `extensions/dashboard/`. Unzipping sometimes adds an
+extra folder layer, like `extensions/dashboard/kindle-dashboard/config.xml`.
 
-- **No menu entry in KUAL.** KUAL finds extensions by `config.xml`, not
-  `menu.json`. Both must sit directly in `extensions/dashboard/`.
-- **Start leaves a white screen.** Stopping the Kindle framework kills KUAL's
-  child processes, so `start.sh` relaunches itself detached first. Allow a
-  minute or two for the first draw.
-- **Times off by hours.** The Kindle has no timezone database. Named zones
-  like `America/Los_Angeles` silently fall back to UTC, so a POSIX rule string
-  is used instead. Its Python also lacks `time.tzset()`.
-- **`CERTIFICATE_VERIFY_FAILED`.** `certs/cacert.pem` is missing or stale.
-- **`No space left on device`.** If you block OTA updates by filling the
-  storage, leave ~150 MB free for the dashboard; updates need far more.
-- **Never wakes.** The wake-capable RTC is `rtc1` on most models but `rtc0` on
-  some. Check `ls /sys/class/rtc/` and edit `RTC=` in `bin/start.sh`.
-- **Slow first render.** The font index is built once and cached in
-  `fonts/cache/`; later runs are much faster.
+**`CERTIFICATE_VERIFY_FAILED` in the log.** `certs/cacert.pem` is missing.
 
-## Credits
+**`Temporary failure in name resolution`.** The Kindle can't reach the internet.
+Check Airplane Mode and your router block.
 
-- [FBInk](https://github.com/NiLuJe/FBInk), the Python package, and KUAL/MRPI
-  builds by NiLuJe
+**"add 511 key to api_key.txt" on screen.** The key file is missing, or still
+has the placeholder text in it.
+
+**Letters show up as boxes.** The DejaVu fonts aren't in the `fonts` folder at
+the top level of the Kindle.
+
+**Times are hours off.** The timezone is wrong. See step 6.
+
+**"No space left on device".** Your storage is full, almost always from the
+filler you made in step 2. Delete it and make a new one that leaves 150 MB
+free. On a Mac, with the Kindle plugged in and your filler files in a folder
+called `fill_disk`:
+
+```sh
+cd /Volumes/Kindle/fill_disk
+rm -f *
+avail=$(df -m . | awk 'NR==2 {print $4}')
+fill=$((avail - 150))
+i=1
+while [ $fill -gt 0 ]; do
+  chunk=$(( fill > 3000 ? 3000 : fill ))
+  dd if=/dev/zero of=filler$i.dat bs=1m count=$chunk
+  fill=$((fill - chunk)); i=$((i+1))
+done
+df -h .
+```
+
+It writes in 3 GB pieces because the Kindle can't store a single file bigger
+than 4 GB. The files end in `.dat` on purpose: the Kindle treats any `.bin`
+file at the top level as an update.
+
+**It draws once and never updates.** The wake timer is probably on a different
+path on your model. SSH in, run `ls /sys/class/rtc/`, and if you only see
+`rtc0`, change `rtc1` to `rtc0` on the `RTC=` line in `bin/start.sh`.
+
+**Start just gives a white screen forever.** Give it two minutes first. If it's
+still white, reboot and check the log for what happened after
+`waiting for framework teardown`.
+
+---
+
+## Thanks
+
+This leans on a lot of other people's work:
+
+- [NiLuJe](https://github.com/NiLuJe) for FBInk, the Python package, and
+  basically every Kindle tool that matters
 - [KindleModding](https://kindlemodding.org) for WinterBreak and the guides
 - [4dcu-be/kual-dashboard](https://github.com/4dcu-be/kual-dashboard) and
-  [x-magic/kindle-weather-stand-alone](https://github.com/x-magic/kindle-weather-stand-alone)
-  for the on-device SVG approach and the `rsvg-convert` build
-- Weather from [Open-Meteo](https://open-meteo.com); transit data from
-  [511.org](https://511.org/open-data)
+  [x-magic/kindle-weather-stand-alone](https://github.com/x-magic/kindle-weather-stand-alone),
+  where I got the idea of rendering SVGs on the Kindle and the `rsvg-convert`
+  build
+- [Open-Meteo](https://open-meteo.com) for free weather data with no API key
+- [511.org](https://511.org/open-data) for the train data
 
 ## License
 
-MIT, see [LICENSE](LICENSE). Third-party binaries you download keep their own
+MIT. See [LICENSE](LICENSE). The files you download in step 4 have their own
 licenses.
