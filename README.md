@@ -13,6 +13,12 @@ I built it on a Kindle Basic (8th/10th gen, 600×800 screen) running firmware
 5.14.3. Other models should work, but you'd have to resize the layout in
 `svg/template.svg` to fit your screen.
 
+The trains are there because that's what I check every morning. You probably
+don't take Caltrain, and that's fine. The point of this repo is the plumbing:
+getting a Kindle to wake up, fetch whatever you want, draw it, and sleep. Swap
+the train panel for whatever's useful to you. There's a section on
+[making it your own](#making-it-your-own) with ideas and how to do it.
+
 This guide goes from a stock Kindle to a working dashboard. Plan on an hour or
 two the first time, mostly downloading things and waiting on reboots.
 
@@ -113,6 +119,10 @@ without it every HTTPS request fails.
 
 ## Step 5: Get a 511 API key
 
+Skip this if you're not keeping the train panel. Without a key, that part of
+the screen just says "add 511 key to api_key.txt" until you replace it with
+something else.
+
 The train times come from 511.org, the Bay Area's transit data service. Request
 a free key on [511.org's open data page](https://511.org/open-data) (look for "Request a token"). It
 shows up in your email within a few minutes.
@@ -193,6 +203,74 @@ The layout is `svg/template.svg`. It's a normal SVG with placeholders like
 `{{TEMP}}` that the script fills in. You can open it in a browser to see your
 changes before copying it over. Everything's positioned by hand on a 600×800
 grid, so if you move something, check that nothing overlaps.
+
+## Making it your own
+
+The screen is split into panels: the clock, current weather, trains, and the
+forecast. Each panel is some placeholders in `svg/template.svg` plus the code
+in `bin/run.py` that fills them in. To swap one out:
+
+1. Write a function in `run.py` that fetches your data and returns it. Look at
+   `fetch_weather()` for a simple example. It's one HTTPS request and some JSON.
+2. In `build_fields()`, turn that data into strings and put them in `fields`,
+   like `fields["STEPS"] = "8,214"`.
+3. In `template.svg`, put `{{STEPS}}` wherever you want it to show up.
+4. Delete the old panel's code and placeholders, and the `fill_trains()` calls
+   if it's the trains you're replacing.
+
+A few things to keep in mind on a Kindle:
+
+- Keep requests few and fast. Every second it's awake with Wi-Fi on costs
+  battery, and each HTTPS request takes a few seconds on this CPU.
+- The screen only changes when it wakes up. Show things as times ("leaves at
+  8:14") rather than countdowns ("in 4 min"), since a countdown is wrong the
+  moment it's drawn.
+- It's grayscale and the pixels are big. Bold, large text and solid shapes
+  look good. Thin lines and light grays mostly disappear.
+- Stick to APIs that take a simple key or token, or none at all. Anything
+  that makes you sign in through a browser (OAuth) is a pain on a Kindle.
+
+### Ideas
+
+**If you're in the Bay Area but don't ride Caltrain.** 511 covers almost every
+agency. Change `agency=CT` in `fetch_departures()` to `BA` for BART, `SF` for
+Muni, `AC` for AC Transit, or `SM` for SamTrans, and change the stop codes. The
+same key works.
+
+**Other transit.** Lots of cities publish real-time arrivals. In NYC there's
+the MTA's feeds, in Chicago the CTA Train Tracker API, and many US agencies
+are on [Transit.land](https://www.transit.land/). Anywhere with a GTFS-realtime
+feed will work, though parsing those is more involved than JSON.
+
+**Calendar.** Google Calendar and iCloud both give you a private `.ics` link
+for each calendar. Fetch it, pull out today's events, and show the next two or
+three. No login needed.
+
+**More weather.** [Open-Meteo](https://open-meteo.com/en/docs) is already
+wired up and can also give you sunrise and sunset, UV index, wind, or an hourly
+temperature graph. It has a separate
+[air quality API](https://open-meteo.com/en/docs/air-quality-api) too, handy
+during fire season.
+
+**Home Assistant.** If you run it, its REST API can give you any sensor in your
+house: indoor temperature, whether the garage is open, the power your solar
+panels are making. [4dcu-be/kual-dashboard-ha](https://github.com/4dcu-be/kual-dashboard-ha)
+does exactly this and is a good reference.
+
+**A to-do list.** Point it at a Todoist or Notion API, or just a text file you
+keep in a GitHub gist and edit from your phone.
+
+**Stuff that changes slowly.** Stock or crypto prices, your GitHub
+contributions for the week, a word of the day, a random quote, the next
+holiday or a countdown to something. These suit an e-ink screen well because
+nobody needs them to the minute.
+
+**Rotate between screens.** Draw a different layout depending on the time of
+day, like trains and weather in the morning and your calendar in the
+afternoon. It's just an `if` on the hour and a second template file.
+
+If you build something cool with this, I'd like to see it. Open an issue with
+a photo.
 
 ---
 
